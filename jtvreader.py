@@ -1,5 +1,4 @@
 #!/usr/bin/python
-__author__ = 'bocha'
 
 import sys
 import jtv

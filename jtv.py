@@ -6,8 +6,6 @@ import zipfile
 import datetime
 
 
-__author__ = 'bocha'
-
 
 # n Python 'cp855', 'cp866', 'cp1251', 'iso8859_5', 'koi8_r' are differing Russian code pages.
 preferredEncoding = locale.getpreferredencoding()
