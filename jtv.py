@@ -7,46 +7,64 @@ import datetime
 
 
 
+
 # n Python 'cp855', 'cp866', 'cp1251', 'iso8859_5', 'koi8_r' are differing Russian code pages.
+from jtvdb import JtvDB
+
 preferredEncoding = locale.getpreferredencoding()
 
 class JTV :
 
     __jtvPath = ""
     __jtvFileName = ""
-    __jtvEncode = ""
+    __jtvEncodeFileName = ""
+    __jtvEncodeProgrammName = ""
     __zipFile = zipfile.ZipFile
+    __jtvDb = JtvDB()
 
-    def __init__(self, path, fileName, encode):
+    def __init__(self, path, fileName):
         self.__jtvPath = path
         self.__jtvFileName = fileName
-        self.__jtvEncode = encode
+
+        self.__jtvDb.removeAll()
+        self.__jtvDb.create()
+        self.__jtvEncodeFileName = u'cp866'
+        self.__jtvEncodeProgrammName = u'cp1251'
+
 
     def printInfo(self):
-        print "\n"+self.__jtvPath+self.__jtvFileName,"[",self.__jtvEncode,"]"
+        print "\n"+self.__jtvPath+self.__jtvFileName,"[",self.__jtvEncodeFileName,"]"
 
     def execute (self):
 
         self.__zipFile = zipfile.ZipFile(self.__jtvPath+'/'+self.__jtvFileName, 'r')
         print "[",self.__jtvFileName,"].len: ", len(self.__zipFile.filelist)
 
+        arrChannel = []
+
         for jtvFile in self.__zipFile.filelist:
             fileName = jtvFile.filename
             sizeFileName = len(fileName)
             extFile = fileName[sizeFileName-3:]
-            fileNameEncoding = fileName.decode(self.__jtvEncode)
+#            fileNameEncoding = fileName.decode(self.__jtvEncodeFileName)
+            fileNameEncoding = unicode(fileName, self.__jtvEncodeFileName)
             if not isinstance(fileNameEncoding, unicode):
-                print "Wrong encode [" + self.__jtvEncode + "]: ",fileName
+                print "Wrong encode [" + self.__jtvEncodeFileName + "]: ",fileName
             else :
-                print "\nFile: " + fileNameEncoding,"[",jtvFile.file_size,"]"
-#                if extFile.lower() == 'pdt':
-#                    self.__readPdtFile(jtvFile)
-#                    break
-                if extFile.lower() == 'ndx':
-                    self.__readNdxFile(jtvFile)
+#                print "\nFile: " + fileNameEncoding,"[",jtvFile.file_size,"]"
+                chName = fileNameEncoding[0:sizeFileName-4]
+#                print chName
+                if (chName,) not in arrChannel:
+                    arrChannel.append((chName,))
+                if extFile.lower() == 'pdt':
+                    self.__readPdtFile(jtvFile)
                     break
-
+#                if extFile.lower() == 'ndx':
+#                    self.__readNdxFile(jtvFile)
+#                    break
+        self.__jtvDb.addChannelArray(arrChannel)
         self.__zipFile.close()
+        del arrChannel
 
 
     def __readPdtFile(self, file):
@@ -58,9 +76,9 @@ class JTV :
         while bt.tell() < sizeFile:
             lenBytes = bt.read(2)
             lenSum = ord(lenBytes[0]) + ord(lenBytes[1])
-            bytesProName = bt.read(lenSum)
             pos = bt.tell()
-            print "[%2s >> %4s] %s" % (lenSum, pos, bytesProName.decode("cp1251"))
+            bytesProName = unicode(bt.read(lenSum), self.__jtvEncodeProgrammName)
+#            print "[%4s >> %2s] %s" % (pos, lenSum, bytesProName)
 
         bt.close()
 
