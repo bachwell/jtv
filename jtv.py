@@ -5,11 +5,9 @@ import locale
 import zipfile
 import datetime
 
-
-
-
 # n Python 'cp855', 'cp866', 'cp1251', 'iso8859_5', 'koi8_r' are differing Russian code pages.
 from jtvdb import JtvDB
+from datetime import datetime
 
 preferredEncoding = locale.getpreferredencoding()
 
@@ -26,8 +24,8 @@ class JTV :
         self.__jtvPath = path
         self.__jtvFileName = fileName
 
-        self.__jtvDb.removeAll()
-        self.__jtvDb.create()
+#        self.__jtvDb.removeAll()
+#        self.__jtvDb.create()
         self.__jtvEncodeFileName = u'cp866'
         self.__jtvEncodeProgrammName = u'cp1251'
 
@@ -46,73 +44,99 @@ class JTV :
             fileName = jtvFile.filename
             sizeFileName = len(fileName)
             extFile = fileName[sizeFileName-3:]
-#            fileNameEncoding = fileName.decode(self.__jtvEncodeFileName)
             fileNameEncoding = unicode(fileName, self.__jtvEncodeFileName)
             if not isinstance(fileNameEncoding, unicode):
                 print "Wrong encode [" + self.__jtvEncodeFileName + "]: ",fileName
             else :
+                arrNDX = []
 #                print "\nFile: " + fileNameEncoding,"[",jtvFile.file_size,"]"
                 chName = fileNameEncoding[0:sizeFileName-4]
-#                print chName
                 if (chName,) not in arrChannel:
                     arrChannel.append((chName,))
+
                 if extFile.lower() == 'pdt':
-                    self.__readPdtFile(jtvFile)
-                    break
-#                if extFile.lower() == 'ndx':
-#                    self.__readNdxFile(jtvFile)
-#                    break
-        self.__jtvDb.addChannelArray(arrChannel)
+                    arrNDX = self.__readPdtFile(jtvFile)
+                if extFile.lower() == 'ndx':
+                    arrNDX = self.__readNdxFile(jtvFile)
+
+                self.__jtvDb.addTimeArray(chName, arrNDX)
+                del arrNDX
+#                break
+#        self.__jtvDb.addChannelArray(arrChannel)
         self.__zipFile.close()
         del arrChannel
 
 
     def __readPdtFile(self, file):
+        returnData = []
         fileName = file.filename
         sizeFile = file.file_size
         fileData = self.__zipFile.read(fileName, 'rU')
         bt = BytesIO(fileData)
         bt.seek(int('0x01A', 0))
         while bt.tell() < sizeFile:
-            lenBytes = bt.read(2)
-            lenSum = ord(lenBytes[0]) + ord(lenBytes[1])
             pos = bt.tell()
+            lenBytes = bt.read(2)
+            lenBytesHex = "0x" + ''.join( [ "%02X" % ord( x ) for x in reversed(lenBytes) ] )
+            lenSum = int(lenBytesHex, 0)
             bytesProName = unicode(bt.read(lenSum), self.__jtvEncodeProgrammName)
-#            print "[%4s >> %2s] %s" % (pos, lenSum, bytesProName)
+            returnData.append((pos, bytesProName, None))
 
         bt.close()
+        return returnData
 
     def __readNdxFile(self, file):
+        returnData = []
         fileName = file.filename
         sizeFile = file.file_size
-        print "--->>> ", fileName
+#        print "--->>> ", fileName
         fileData = self.__zipFile.read(fileName, 'rU')
         bt = BytesIO(fileData)
 
         bt.seek(0)
         lenBytes = bt.read(2)
-        lenSum = ord(lenBytes[0]) + ord(lenBytes[1])
+        lenSum = self.BytesToInt(lenBytes)
+#        print "lenSum = ", lenSum
 
-        print "lenSum = ", lenSum
         while bt.tell() < sizeFile:
-            lenBytes2 = bt.read(2)
-            lenBytes2sum = ord(lenBytes2[0]) + ord(lenBytes2[1])
+            lenBytes12 = bt.read(12)
 
-            startTime = bt.read(8)
-            startTimeSum = 0
-            for st in startTime:
-                startTimeSum += ord(st)
+            # NULL bytes
+            bytesNull = lenBytes12[0:2]
+            bytesNullInt = self.BytesToInt(bytesNull)
+            # FILETIME bytes
+            bytesFileTime = lenBytes12[2:10]
+            bytesFileTimeInt = self.BytesToInt(bytesFileTime)
+            # offset in PDT bytes
+            bytesOffsetPdt = lenBytes12[10:12]
+            bytesOffsetPdtInt = self.BytesToInt(bytesOffsetPdt)
 
-            startTimeSum *= 116444736000000000/10000000
+            startTimeInt = self.FiletimeToUnixtimestamp(bytesFileTimeInt)
+#            print "--->>> ", startTimeInt, " = ", datetime.fromtimestamp(startTimeInt), " =>> ", bytesOffsetPdtInt
+            returnData.append((bytesOffsetPdtInt, None, startTimeInt))
 
-#            print "# " + datetime.datetime.
+        bt.close()
+        return returnData
 
 
-            offsetPdt = bt.read(2)
-            offsetPdtSum = ord(offsetPdt[0]) + ord(offsetPdt[1])
+    def FiletimeToUnixtimestamp(self, uts):
+        returnValue = -1
+        since1601 = 116444736000000000
+        IntervalsInSecond = 10000000
+        returnValue = (uts - since1601)/IntervalsInSecond
 
-            pos = bt.tell()
-            print "--->>> ",pos," -=< ", lenBytes2sum, startTimeSum, offsetPdtSum
+        return returnValue
+
+    def BytesToInt(self, bytes):
+        bytesHex = "0x" + ''.join( [ "%02X" % ord( x ) for x in reversed(bytes) ] )
+        bytesInt = int(bytesHex, 0)
+
+        return bytesInt
+
+
+
+
+
 
 
 
