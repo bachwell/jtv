@@ -27,6 +27,7 @@ try:
     objJtv.printInfo()
 
     jtvDb.printChannel()
+
 except Exception, e:
     print "Exception: %s" % e
 #    sys.exit(1)
